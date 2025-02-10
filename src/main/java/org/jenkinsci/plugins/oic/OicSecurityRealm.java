@@ -42,6 +42,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.ExtensionList;
+import hudson.ProxyConfiguration;
 import hudson.Util;
 import hudson.model.Descriptor;
 import hudson.model.Descriptor.FormException;
@@ -78,11 +79,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.text.ParseException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -1096,8 +1101,8 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
             try {
 
                 // Extract avatar from the userInfo
-                String encodedAvatar = determineStringField(avatarFieldExpr, idToken, userInfo);
-                byte[] decodedAvatar = Base64.getDecoder().decode(encodedAvatar);
+                String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
+                byte[] decodedAvatar = downloadAvatar(avatarUrl);
 
                 // Try to determine the content type of the avatar
                 String contentType = determineAvatarContentType(decodedAvatar);
@@ -1124,6 +1129,26 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         SecurityListener.fireLoggedIn(userName);
 
         return token;
+    }
+
+    private static byte[] downloadAvatar(String avatarUrl) throws Exception {
+        if (StringUtils.isBlank(avatarUrl)) {
+            throw new IllegalStateException("Avatar URL is null or empty");
+        }
+        if (!avatarUrl.startsWith("http") && !avatarUrl.startsWith("https")) {
+            throw new IllegalStateException("Avatar URL is not a valid URL");
+        }
+        URI url = new URI(avatarUrl);
+        HttpClient client = ProxyConfiguration.newHttpClientBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+        HttpRequest request = ProxyConfiguration.newHttpRequestBuilder(url)
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build();
+        HttpResponse<byte[]> resp = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        return resp.body();
     }
 
     private String determineAvatarContentType(byte[] avatar) {

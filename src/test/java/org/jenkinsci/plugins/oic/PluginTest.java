@@ -360,8 +360,16 @@ public class PluginTest {
     public void testLoginUsingUserInfoEndpointWithAvatar() throws Exception {
         mockAuthorizationRedirectsToFinishLogin();
         mockTokenReturnsIdTokenWithoutValues();
-        mockUserInfoWithAvatar(TEST_ENCODED_AVATAR);
+        mockUserInfoWithAvatar(wireMockRule);
         configureWellKnown(null, null);
+
+        // Return avatar image when requested
+        wireMockRule.stubFor(get(urlPathEqualTo("/my-avatar.png"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "image/png")
+                        .withBody(Base64.getDecoder().decode(TEST_ENCODED_AVATAR))));
+
         jenkins.setSecurityRealm(new TestRealm(wireMockRule, null, EMAIL_FIELD, GROUPS_FIELD, AVATAR_FIELD, true));
         assertAnonymous();
         browseLoginPage();
@@ -1290,8 +1298,8 @@ public class PluginTest {
         mockUserInfo(getUserInfo(groups, null));
     }
 
-    private void mockUserInfoWithAvatar(String encodedAvatar) {
-        mockUserInfo(getUserInfo(null, encodedAvatar));
+    private void mockUserInfoWithAvatar(WireMockRule wireMockRule) {
+        mockUserInfo(getUserInfo(null, wireMockRule));
     }
 
     private void mockUserInfoJwtWithTestGroups(KeyPair keyPair, Object testUserGroups) throws Exception {
@@ -1308,7 +1316,7 @@ public class PluginTest {
                         .withBody(toJson(userInfo))));
     }
 
-    private static Map<String, Object> getUserInfo(@Nullable Object groups, @Nullable String encodedAvatar) {
+    private static Map<String, Object> getUserInfo(@Nullable Object groups, WireMockRule wireMockRule) {
         Map<String, Object> userInfo = new HashMap<>();
         userInfo.put("sub", TEST_USER_USERNAME);
         userInfo.put(FULL_NAME_FIELD, TEST_USER_FULL_NAME);
@@ -1316,8 +1324,8 @@ public class PluginTest {
         if (groups != null) {
             userInfo.put(GROUPS_FIELD, groups);
         }
-        if (encodedAvatar != null) {
-            userInfo.put(AVATAR_FIELD, encodedAvatar);
+        if (wireMockRule != null) {
+            userInfo.put(AVATAR_FIELD, "http://localhost:" + wireMockRule.port() + "/my-avatar.png");
         }
         return userInfo;
     }
