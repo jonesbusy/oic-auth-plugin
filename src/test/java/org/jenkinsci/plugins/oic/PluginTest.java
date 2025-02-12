@@ -229,12 +229,6 @@ public class PluginTest {
         webClient.goTo(jenkins.getSecurityRealm().getLoginUrl());
     }
 
-    private void browseAvatarImagePage(User user, String contentType) throws IOException, SAXException {
-        String expectedAvatarUrl =
-                "user/%s/oic-avatar/image".formatted(user.getId().toLowerCase());
-        webClient.goTo(expectedAvatarUrl, contentType);
-    }
-
     private void configureTestRealm(@NonNull Consumer<OicSecurityRealm> consumer) throws Exception {
         var securityRealm = new TestRealm(wireMockRule);
         consumer.accept(securityRealm);
@@ -374,8 +368,7 @@ public class PluginTest {
         browseLoginPage();
         var user = assertTestUser();
         assertTestUserEmail(user);
-        assertTestAvatar(jenkins, user);
-        browseAvatarImagePage(user, "image/png"); // Image is browsable
+        assertTestAvatar(user, wireMockRule);
     }
 
     @Test
@@ -389,7 +382,6 @@ public class PluginTest {
         var user = assertTestUser();
         assertTrue(
                 "User should be not be part of any group", user.getAuthorities().isEmpty());
-        browseAvatarImagePage(user, null);
     }
 
     @Test
@@ -866,9 +858,8 @@ public class PluginTest {
                 user.getProperty(Mailer.UserProperty.class).getAddress());
     }
 
-    private static void assertTestAvatar(Jenkins jenkins, User user) {
-        String expectedAvatarUrl = "%suser/%s/oic-avatar/image"
-                .formatted(jenkins.getRootUrl(), user.getId().toLowerCase());
+    private static void assertTestAvatar(User user, WireMockRule wireMockRule) {
+        String expectedAvatarUrl = "http://localhost:%s/my-avatar.png".formatted(wireMockRule.port());
         OicAvatarProperty avatarProperty = user.getProperty(OicAvatarProperty.class);
         assertEquals("Avatar url should be " + expectedAvatarUrl, expectedAvatarUrl, avatarProperty.getAvatarUrl());
         assertEquals("Openid Connect Avatar", avatarProperty.getDisplayName());

@@ -42,7 +42,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.ExtensionList;
-import hudson.ProxyConfiguration;
 import hudson.Util;
 import hudson.model.Descriptor;
 import hudson.model.Descriptor.FormException;
@@ -66,10 +65,7 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InvalidObjectException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -79,19 +75,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.text.ParseException;
 import java.time.Clock;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -100,8 +89,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.annotation.PostConstruct;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
 import jenkins.model.IdStrategy;
 import jenkins.model.IdStrategyDescriptor;
 import jenkins.model.Jenkins;
@@ -1092,18 +1079,9 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         try {
             String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
             if (avatarUrl != null) {
-                byte[] decodedAvatar = downloadAvatar(avatarUrl);
-
-                // Try to determine the content type of the avatar
-                String contentType = determineAvatarContentType(decodedAvatar);
-                LOGGER.finest("Avatar content type: " + contentType);
-
-                OicAvatarProperty.AvatarImage avatarImage = new OicAvatarProperty.AvatarImage(contentType);
+                LOGGER.finest("Avatar url is: " + avatarUrl);
+                OicAvatarProperty.AvatarImage avatarImage = new OicAvatarProperty.AvatarImage(avatarUrl);
                 OicAvatarProperty oicAvatarProperty = new OicAvatarProperty(avatarImage);
-                File targetFile = new File(user.getUserFolder(), "oic-avatar." + avatarImage.getFilenameSuffix());
-
-                Files.write(targetFile.toPath(), decodedAvatar, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                LOGGER.finest("Saved avatar");
                 user.addProperty(oicAvatarProperty);
             } else {
                 LOGGER.finest("No avatar URL found");
@@ -1120,51 +1098,6 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         SecurityListener.fireLoggedIn(userName);
 
         return token;
-    }
-
-    private static byte[] downloadAvatar(String avatarUrl) throws Exception {
-        if (StringUtils.isBlank(avatarUrl)) {
-            throw new IllegalStateException("Avatar URL is null or empty");
-        }
-        if (!avatarUrl.startsWith("http") && !avatarUrl.startsWith("https")) {
-            throw new IllegalStateException("Avatar URL is not a valid URL");
-        }
-        URI url = new URI(avatarUrl);
-        HttpClient client = ProxyConfiguration.newHttpClientBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
-        HttpRequest request = ProxyConfiguration.newHttpRequestBuilder(url)
-                .timeout(Duration.ofSeconds(5))
-                .GET()
-                .build();
-        HttpResponse<byte[]> resp = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        return resp.body();
-    }
-
-    private String determineAvatarContentType(byte[] avatar) {
-        try (InputStream is = new ByteArrayInputStream(avatar)) {
-            Iterator<ImageReader> iterator = ImageIO.getImageReaders(ImageIO.createImageInputStream(is));
-            if (!iterator.hasNext()) {
-                LOGGER.warning("Failed to determine avatar content type. Falling back to image/png");
-                return "image/png";
-            }
-            String formatName = iterator.next().getFormatName();
-            switch (formatName.toLowerCase()) {
-                case "jpg":
-                case "jpeg":
-                    return "image/jpeg";
-                case "png":
-                    return "image/png";
-                case "gif":
-                    return "image/gif";
-                default:
-                    return "image/png";
-            }
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Failed to determine avatar content type. Falling back to image/png", e);
-            return "image/png";
-        }
     }
 
     private String determineStringField(Expression<Object> fieldExpr, JWT idToken, Map userInfo) throws ParseException {
