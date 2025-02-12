@@ -227,7 +227,6 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     private transient Expression<Object> emailFieldExpr = null;
     private String groupsFieldName = null;
     private transient Expression<Object> groupsFieldExpr = null;
-    private String avatarFieldName = null;
     private transient Expression<Object> avatarFieldExpr = null;
     private transient String simpleGroupsFieldName = null;
     private transient String nestedGroupFieldName = null;
@@ -351,6 +350,8 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         this.serverConfiguration = serverConfiguration;
         this.userIdStrategy = userIdStrategy;
         this.groupIdStrategy = groupIdStrategy;
+        this.avatarFieldExpr =
+                compileJMESPath("picture", "avatar field"); // Default on OIDC spec, part of profile claim
     }
 
     @SuppressWarnings("deprecated")
@@ -380,7 +381,8 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
             this.setGroupsFieldName(this.groupsFieldName);
         }
         // ensure Field JMESPath are computed
-        this.setAvatarFieldName(this.avatarFieldName);
+        this.avatarFieldExpr =
+                this.compileJMESPath("picture", "avatar field"); // Default on OIDC spec, part of profile claim
         this.setUserNameField(this.userNameField);
         this.setEmailFieldName(this.emailFieldName);
         this.setFullNameFieldName(this.fullNameFieldName);
@@ -477,10 +479,6 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
 
     public String getGroupsFieldName() {
         return groupsFieldName;
-    }
-
-    public String getAvatarFieldName() {
-        return avatarFieldName;
     }
 
     @Override
@@ -817,12 +815,6 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
     }
 
     @DataBoundSetter
-    public void setAvatarFieldName(String avatarFieldName) {
-        this.avatarFieldName = Util.fixEmptyAndTrim(avatarFieldName);
-        this.avatarFieldExpr = this.compileJMESPath(this.avatarFieldName, "avatar field");
-    }
-
-    @DataBoundSetter
     public void setLogoutFromOpenidProvider(boolean logoutFromOpenidProvider) {
         this.logoutFromOpenidProvider = logoutFromOpenidProvider;
     }
@@ -1097,11 +1089,9 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         }
 
         // Set avatar if possible
-        if (StringUtils.isNotBlank(avatarFieldName)) {
-            try {
-
-                // Extract avatar from the userInfo
-                String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
+        try {
+            String avatarUrl = determineStringField(avatarFieldExpr, idToken, userInfo);
+            if (avatarUrl != null) {
                 byte[] decodedAvatar = downloadAvatar(avatarUrl);
 
                 // Try to determine the content type of the avatar
@@ -1115,11 +1105,12 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
                 Files.write(targetFile.toPath(), decodedAvatar, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
                 LOGGER.finest("Saved avatar");
                 user.addProperty(oicAvatarProperty);
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Failed to save profile photo for %s".formatted(user.getId()), e);
+            } else {
+                LOGGER.finest("No avatar URL found");
             }
-        } else {
-            LOGGER.finest("No avatar field name or expression configured");
+
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to save profile photo for %s".formatted(user.getId()), e);
         }
 
         user.addProperty(credentials);
@@ -1180,10 +1171,16 @@ public class OicSecurityRealm extends SecurityRealm implements Serializable {
         if (fieldExpr != null) {
             if (userInfo != null) {
                 Object field = fieldExpr.search(userInfo);
-                if (field != null && field instanceof String) {
-                    String fieldValue = Util.fixEmptyAndTrim((String) field);
-                    if (fieldValue != null) {
-                        return fieldValue;
+                if (field != null) {
+                    if (field instanceof String) {
+                        String fieldValue = Util.fixEmptyAndTrim((String) field);
+                        if (fieldValue != null) {
+                            return fieldValue;
+                        }
+                    }
+                    // pac4j OIDC client returns URI for some fields like the "picture" field
+                    if (field instanceof URI) {
+                        return ((URI) field).toASCIIString();
                     }
                 }
             }

@@ -81,7 +81,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.jenkinsci.plugins.oic.TestRealm.AVATAR_FIELD;
 import static org.jenkinsci.plugins.oic.TestRealm.EMAIL_FIELD;
 import static org.jenkinsci.plugins.oic.TestRealm.FULL_NAME_FIELD;
 import static org.jenkinsci.plugins.oic.TestRealm.GROUPS_FIELD;
@@ -370,7 +369,7 @@ public class PluginTest {
                         .withHeader("Content-Type", "image/png")
                         .withBody(Base64.getDecoder().decode(TEST_ENCODED_AVATAR))));
 
-        jenkins.setSecurityRealm(new TestRealm(wireMockRule, null, EMAIL_FIELD, GROUPS_FIELD, AVATAR_FIELD, true));
+        jenkins.setSecurityRealm(new TestRealm(wireMockRule, null, EMAIL_FIELD, GROUPS_FIELD, true));
         assertAnonymous();
         browseLoginPage();
         var user = assertTestUser();
@@ -1325,7 +1324,7 @@ public class PluginTest {
             userInfo.put(GROUPS_FIELD, groups);
         }
         if (wireMockRule != null) {
-            userInfo.put(AVATAR_FIELD, "http://localhost:" + wireMockRule.port() + "/my-avatar.png");
+            userInfo.put("picture", "http://localhost:" + wireMockRule.port() + "/my-avatar.png");
         }
         return userInfo;
     }

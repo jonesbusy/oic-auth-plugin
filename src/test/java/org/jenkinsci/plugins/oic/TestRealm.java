@@ -25,7 +25,6 @@ public class TestRealm extends OicSecurityRealm {
     public static final String EMAIL_FIELD = "email";
     public static final String FULL_NAME_FIELD = "fullName";
     public static final String GROUPS_FIELD = "groups";
-    public static final String AVATAR_FIELD = "avatar";
     public static final String ISSUER = "https://localhost/";
 
     public static class Builder {
@@ -45,7 +44,6 @@ public class TestRealm extends OicSecurityRealm {
         public String emailFieldName = null;
         public String scopes = null;
         public String groupsFieldName = null;
-        public String avatarFieldName = null;
         public boolean disableSslVerification = false;
         public Boolean logoutFromOpenidProvider = false;
         public String endSessionEndpoint = null;
@@ -104,11 +102,6 @@ public class TestRealm extends OicSecurityRealm {
 
         public Builder WithGroupsFieldName(String groupsFieldName) {
             this.groupsFieldName = groupsFieldName;
-            return this;
-        }
-
-        public Builder WithAvatarFieldName(String avatarFieldName) {
-            this.avatarFieldName = avatarFieldName;
             return this;
         }
 
@@ -213,7 +206,6 @@ public class TestRealm extends OicSecurityRealm {
         this.setFullNameFieldName(builder.fullNameFieldName);
         this.setEmailFieldName(builder.emailFieldName);
         this.setGroupsFieldName(builder.groupsFieldName);
-        this.setAvatarFieldName(builder.avatarFieldName);
         this.setLogoutFromOpenidProvider(builder.logoutFromOpenidProvider);
         this.setPostLogoutRedirectUrl(builder.postLogoutRedirectUrl);
         this.setEscapeHatchEnabled(builder.escapeHatchEnabled);
@@ -233,22 +225,6 @@ public class TestRealm extends OicSecurityRealm {
                 .WithUserInfoServerUrl(userInfoServerUrl)
                         .WithEmailFieldName(emailFieldName)
                         .WithGroupsFieldName(groupsFieldName));
-    }
-
-    public TestRealm(
-            WireMockRule wireMockRule,
-            String userInfoServerUrl,
-            String emailFieldName,
-            String groupsFieldName,
-            String avatarFieldName,
-            boolean automanualconfigure)
-            throws Exception {
-        this(new Builder(wireMockRule)
-                .WithUserInfoServerUrl(userInfoServerUrl)
-                        .WithEmailFieldName(emailFieldName)
-                        .WithGroupsFieldName(groupsFieldName)
-                        .WithAvatarFieldName(avatarFieldName)
-                        .WithAutomanualconfigure(automanualconfigure));
     }
 
     public TestRealm(WireMockRule wireMockRule) throws Exception {
